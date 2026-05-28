@@ -9,7 +9,8 @@
 #include <limits>
 #include <algorithm>
 #include <cctype>
-#include <windows.h>
+#include <iomanip>
+#include <string>
 
 using namespace std;
 
@@ -32,6 +33,34 @@ map<string, vector<Edge>> graph;
 vector<string> nodes;
 vector<Step> processSteps;
 
+// ============================================================
+// Cross-platform clear screen
+// ============================================================
+void clearScreen(){
+#ifdef _WIN32
+    system("cls");
+#else
+    // ANSI escape code works on Linux, macOS, and most modern terminals
+    cout << "\033[2J\033[1;1H";
+#endif
+}
+
+// ============================================================
+// Cross-platform open browser
+// ============================================================
+void openBrowser(){
+#ifdef _WIN32
+    system("start index.html");
+#elif __APPLE__
+    system("open index.html");
+#else
+    system("xdg-open index.html");
+#endif
+}
+
+// ============================================================
+// Edge helpers
+// ============================================================
 void addBidirectionalEdge(const string& from, const string& to, int weight){
     graph[from].push_back({to, weight});
     if(from != to){
@@ -52,6 +81,9 @@ bool directedEdgeExists(const string& from, const string& to){
     return false;
 }
 
+// ============================================================
+// Input helpers
+// ============================================================
 void clearInputBuffer(){
     cin.clear();
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -167,6 +199,26 @@ bool containsAlphabet(const string& value){
     return false;
 }
 
+// ============================================================
+// String helpers
+// ============================================================
+string toLowerCase(string s){
+    transform(s.begin(), s.end(), s.begin(), ::tolower);
+    return s;
+}
+
+string toUpperCase(string s){
+    transform(s.begin(), s.end(), s.begin(), ::toupper);
+    return s;
+}
+
+string toUpperCopy(string value){
+    return toUpperCase(value);
+}
+
+// ============================================================
+// Graph setup
+// ============================================================
 void setupPredefinedGraph(){
     nodes = {"V1","V2","V3","V4","V5","V6","V7",
              "V8","V9","V10","V11","V12","V13","V14"};
@@ -214,22 +266,60 @@ void setupPredefinedGraph(){
     addBidirectionalEdge("V12", "V13", 4);
 }
 
-vector<string> reconstructPath(map<string,string>& previous, string destination){
+// ============================================================
+// reconstructPath — FIXED
+//   - Returns empty vector if destination unreachable (dist == INF)
+//   - Returns {source} if source == destination
+//   - Guards against infinite loops from malformed previous map
+// ============================================================
+vector<string> reconstructPath(map<string,string>& previous,
+                               const map<string,int>& dist,
+                               const string& source,
+                               const string& destination){
     vector<string> path;
-    if(previous.find(destination)==previous.end() && find(nodes.begin(), nodes.end(), destination)==nodes.end()){
-        return path; // empty
+
+    // If destination is not a known node, return empty
+    if(dist.find(destination) == dist.end()){
+        return path;
     }
 
-    // if destination unreachable, previous may be "" and dist INF; reconstruct will still push destination only if reachable
+    // If destination is unreachable, return empty
+    if(dist.at(destination) >= INF){
+        return path;
+    }
+
+    // If source == destination, return just that node
+    if(source == destination){
+        path.push_back(source);
+        return path;
+    }
+
+    // Trace back from destination to source, with cycle guard
+    unordered_set<string> visited;
     string cur = destination;
     while(cur != ""){
+        // Infinite loop guard: if we revisit a node, the previous map is malformed
+        if(visited.count(cur)){
+            return vector<string>(); // return empty to signal error
+        }
+        visited.insert(cur);
         path.push_back(cur);
         cur = previous[cur];
     }
+
     reverse(path.begin(), path.end());
+
+    // Verify the path actually starts at source
+    if(path.empty() || path.front() != source){
+        return vector<string>(); // malformed path
+    }
+
     return path;
 }
 
+// ============================================================
+// Dijkstra
+// ============================================================
 pair<map<string,int>, map<string,string>> dijkstra(string source){
     processSteps.clear();
 
@@ -278,7 +368,7 @@ pair<map<string,int>, map<string,string>> dijkstra(string source){
                 previous[edge.to] = current;
                 lastUpdatedAt[edge.to] = iteration;
                 pq.push({newDist, edge.to});
-                cout << "Update " << edge.to << " = " << dist[edge.to] << " via " << current << endl;
+                cout << "Update " << toUpperCase(edge.to) << " = " << dist[edge.to] << " via " << toUpperCase(current) << endl;
             }
         }
 
@@ -302,6 +392,88 @@ pair<map<string,int>, map<string,string>> dijkstra(string source){
     return {dist, previous};
 }
 
+// ============================================================
+// Console table output — shortest distances & paths from source
+// ============================================================
+void printConsoleTable(const map<string,int>& dist,
+                       map<string,string>& previous,
+                       const string& source){
+    cout << "\n";
+    cout << "+======================================================================+\n";
+    cout << "|           SHORTEST DISTANCES FROM " << setw(6) << left << toUpperCase(source) << "                              |\n";
+    cout << "+============+===============+=========================================+\n";
+    cout << "|    Node    |   Distance    |              Path                       |\n";
+    cout << "+============+===============+=========================================+\n";
+
+    for(const auto& node : nodes){
+        string distStr;
+        string pathStr;
+
+        if(dist.at(node) >= INF){
+            distStr = "INF";
+            pathStr = "(unreachable)";
+        } else {
+            distStr = to_string(dist.at(node));
+
+            // Reconstruct path for this node
+            vector<string> path = reconstructPath(previous, dist, source, node);
+            if(!path.empty()){
+                stringstream ss;
+                for(size_t i = 0; i < path.size(); ++i){
+                    ss << toUpperCase(path[i]);
+                    if(i + 1 != path.size()) ss << " -> ";
+                }
+                pathStr = ss.str();
+            } else {
+                pathStr = "(no path)";
+            }
+        }
+
+        cout << "| " << setw(10) << left << toUpperCase(node)
+             << " | " << setw(13) << left << distStr
+             << " | " << setw(39) << left << pathStr << " |\n";
+    }
+
+    cout << "+============+===============+=========================================+\n";
+}
+
+// ============================================================
+// Time & space complexity note
+// ============================================================
+void printComplexityNote(){
+    cout << "\n------------------------------------------------------\n";
+    cout << "Time Complexity: O((V + E) log V) using Min-Heap Priority Queue\n";
+    cout << "Space Complexity: O(V + E)\n";
+    cout << "------------------------------------------------------\n";
+}
+
+// ============================================================
+// Node helpers
+// ============================================================
+bool nodeExists(const string& n){
+    return find(nodes.begin(), nodes.end(), n) != nodes.end();
+}
+
+void normalizeNodeInput(string& value){
+    transform(value.begin(), value.end(), value.begin(), [](unsigned char ch){
+        return static_cast<char>(toupper(ch));
+    });
+}
+
+bool tryResolveNodeCaseInsensitive(const string& input, string& resolved){
+    string inputUpper = toUpperCopy(input);
+    for(const auto& n : nodes){
+        if(toUpperCopy(n) == inputUpper){
+            resolved = n;
+            return true;
+        }
+    }
+    return false;
+}
+
+// ============================================================
+// JS helper
+// ============================================================
 string vectorToJSArray(const vector<string>& arr){
     stringstream ss;
     ss << "[";
@@ -313,22 +485,20 @@ string vectorToJSArray(const vector<string>& arr){
     return ss.str();
 }
 
-string toLowerCase(string s){
-    transform(s.begin(), s.end(), s.begin(), ::tolower);
-    return s;
-}
+// ============================================================
+// generateHTML — refactored into helper functions
+// ============================================================
 
-string toUpperCase(string s){
-    transform(s.begin(), s.end(), s.begin(), ::toupper);
-    return s;
-}
-
-void generateHTML(const vector<string>& shortestPath, int totalWeight, const string& source, const string& destination, bool manualPositions, const map<string, pair<int,int>>& positions){
-    ofstream html("index.html");
-
+// Helper: write <head> section (meta, script, title)
+void writeHTMLHead(ofstream& html){
     html << "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n";
     html << "<script src=\"https://unpkg.com/cytoscape/dist/cytoscape.min.js\"></script>\n";
-    html << "<title>Dijkstra Game Visualization</title>\n<style>\n";
+    html << "<title>Dijkstra Game Visualization</title>\n";
+}
+
+// Helper: write <style> section
+void writeHTMLStyles(ofstream& html){
+    html << "<style>\n";
     html << "body{font-family:Arial,Helvetica,sans-serif;background:#ffffff;color:#111827;margin:0;padding:0;line-height:1.45;}\n";
     html << ".page{width:100%;max-width:none;margin:0 auto;padding:22px 24px 40px;box-sizing:border-box;}\n";
     html << ".top-section{width:100%;} \n";
@@ -364,27 +534,49 @@ void generateHTML(const vector<string>& shortestPath, int totalWeight, const str
     html << ".dot-end{background:#ef4444;}\n";
     html << ".dot-node{background:#4FC3F7;}\n";
     html << "h1,h2{color:#111827;margin-bottom:10px;}\n";
+    html << ".anim-current { background-color: #facc15 !important; border-color: #d97706 !important; }\n";
+    html << ".anim-visited { background-color: #86efac !important; border-color: #16a34a !important; }\n";
+    html << ".anim-relaxed { line-color: #f97316 !important; target-arrow-color: #f97316 !important; width: 5px !important; }\n";
     html << "</style>\n</head>\n<body>\n";
+}
 
+// Helper: write top section (title, legend, guide, result)
+void writeHTMLTopSection(ofstream& html,
+                          const vector<string>& shortestPath,
+                          int totalWeight,
+                          const string& source,
+                          const string& destination){
     html << "<div class='page'>\n";
     html << "<div class='top-section'>\n";
     html << "<h1>🤖 Mekorama Inspired — Dijkstra Visualization</h1>\n";
+
+    // Legend
     html << "<div class='legend'>\n";
     html << "<span class='legend-item'><span class='legend-dot dot-start'></span>Start Node</span>\n";
     html << "<span class='legend-item'><span class='legend-dot dot-end'></span>Goal Node</span>\n";
     html << "<span class='legend-item'><span class='legend-dot dot-node'></span>Normal Node</span>\n";
     html << "</div>\n";
+
+    // Guide
     html << "<div class='guide'>\n";
     html << "<h3>Cara Input Node</h3>\n";
     html << "<p>Masukkan node dengan format yang benar. Jalur akan dicari otomatis menggunakan algoritma Dijkstra.</p>\n";
-    html << "<p>Node awal: <strong>V1</strong> | Node tujuan: <strong>V14</strong></p>\n";
-    html << "<p class='nodes'>Node tersedia: V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14</p>\n";
-    html << "</div>\n";
+    if(!source.empty() && !destination.empty()){
+        html << "<p>Node awal: <strong>" << toUpperCase(source) << "</strong> | Node tujuan: <strong>" << toUpperCase(destination) << "</strong></p>\n";
+    }
+    html << "<p class='nodes'>Node tersedia: ";
+    for(size_t i = 0; i < nodes.size(); ++i){
+        html << toUpperCase(nodes[i]);
+        if(i + 1 != nodes.size()) html << ", ";
+    }
+    html << "</p>\n</div>\n";
+
+    // Result area
     html << "<div class='result' id='resultArea'>\n";
     if(!shortestPath.empty()){
         html << "<h2>Shortest Path</h2>\n<p>";
         for(size_t i=0;i<shortestPath.size();++i){
-            html << shortestPath[i];
+            html << toUpperCase(shortestPath[i]);
             if(i+1!=shortestPath.size()) html << " → ";
         }
         html << "</p>\n<p>Total Bobot: " << totalWeight << "</p>\n";
@@ -393,10 +585,18 @@ void generateHTML(const vector<string>& shortestPath, int totalWeight, const str
     }
     html << "</div>\n";
     html << "</div>\n";
+}
 
+// Helper: write graph container section
+void writeHTMLGraphSection(ofstream& html){
     html << "<div class='graph-section'>\n<div class='graph-container'>\n<div id=\"cy\"></div>\n</div>\n</div>\n";
+}
 
-    html << "<div class='table-section'>\n<h2>Tabel Proses Dijkstra</h2>\n<div class='table-wrap'>\n<table>\n<thead>\n<tr><th>Iteration</th><th>Unvisited(Q)</th><th>Visited(S)</th><th>Current</th><th colspan='" << nodes.size() << "'>Node : Min = (dist[node], prev[node])</th></tr>\n<tr><th></th><th></th><th></th><th></th>";
+// Helper: write the Dijkstra process table
+void writeHTMLTable(ofstream& html, const vector<string>& shortestPath){
+    html << "<div class='table-section'>\n<h2>Tabel Proses Dijkstra</h2>\n<div class='table-wrap'>\n<table>\n<thead>\n";
+    html << "<tr><th>Iteration</th><th>Unvisited(Q)</th><th>Visited(S)</th><th>Current</th><th colspan='" << nodes.size() << "'>Node : Min = (dist[node], prev[node])</th></tr>\n";
+    html << "<tr><th></th><th></th><th></th><th></th>";
     for(auto &n : nodes) html << "<th class='node-col'>" << toUpperCase(n) << "</th>";
     html << "</tr>\n</thead>\n<tbody>\n";
 
@@ -454,12 +654,40 @@ void generateHTML(const vector<string>& shortestPath, int totalWeight, const str
     }
 
     html << "</tbody>\n</table>\n</div>\n</div>\n";
+}
 
-    // JavaScript: elements, styles, layout, path highlighting, animation
+// Helper: write JavaScript for cytoscape graph, highlighting, and animation
+void writeHTMLScripts(ofstream& html,
+                       const vector<string>& shortestPath,
+                       bool manualPositions,
+                       const map<string, pair<int,int>>& positions){
     html << "<script>\n";
 
     // shortestPath array
     html << "let shortestPath = " << vectorToJSArray(shortestPath) << ";\n";
+
+    // Inject processStepsData
+    html << "let processStepsData = [\n";
+    for(auto& step : processSteps){
+        html << "{ iteration:" << step.iteration << ", current:'" << step.current << "',";
+        html << " visited:[";
+        for(size_t i=0;i<step.visited.size();i++){
+            html << "'" << step.visited[i] << "'";
+            if(i+1!=step.visited.size()) html << ",";
+        }
+        html << "], updatedNodes:[";
+        bool first = true;
+        for(auto& n : nodes){
+            if(step.updatedAt.at(n) == step.iteration){
+                if(!first) html << ",";
+                html << "{node:'" << n << "',dist:" << step.state.at(n).first
+                     << ",prev:'" << step.state.at(n).second << "'}";
+                first = false;
+            }
+        }
+        html << "] },\n";
+    }
+    html << "];\n";
     html << "let isManualPositions = " << (manualPositions ? "true" : "false") << ";\n";
 
     // nodes data
@@ -484,9 +712,6 @@ void generateHTML(const vector<string>& shortestPath, int totalWeight, const str
     }
 
     html << "];\n";
-    if(manualPositions){
-        html << "console.log(elements);\n";
-    }
 
     // cytoscape init
     html << "var cy = cytoscape({ container: document.getElementById('cy'), pixelRatio: 1, wheelSensitivity: 0.2, ";
@@ -497,7 +722,11 @@ void generateHTML(const vector<string>& shortestPath, int totalWeight, const str
     } else {
         html << "{ selector:'edge', style:{ 'label':'data(label)','curve-style':'bezier','control-point-step-size':70,'width':3,'line-color':'#6b7280','target-arrow-color':'#6b7280','arrow-scale':1.2,'target-arrow-shape':'triangle','font-size':14,'font-weight':'bold','color':'#111827','text-background-color':'#ffffff','text-background-opacity':1,'text-background-padding':3,'text-border-color':'#d1d5db','text-border-width':1,'text-rotation':'autorotate','text-margin-y':-8 } }, ";
     }
-    html << "{ selector:'.highlighted', style:{ 'line-color':'#f59e0b','target-arrow-color':'#f59e0b','width':7 } }, { selector:'.start', style:{ 'background-color':'#22c55e' } }, { selector:'.end', style:{ 'background-color':'#ef4444' } } ], minZoom:0.8, maxZoom:2.5, ";
+    html << "{ selector:'.highlighted', style:{ 'line-color':'#f59e0b','target-arrow-color':'#f59e0b','width':7 } }, ";
+    html << "{ selector:'.anim-current', style:{ 'background-color':'#facc15','border-color':'#d97706','border-width':4 } }, ";
+    html << "{ selector:'.anim-visited', style:{ 'background-color':'#86efac','border-color':'#16a34a' } }, ";
+    html << "{ selector:'.anim-relaxed', style:{ 'line-color':'#f97316','target-arrow-color':'#f97316','width':6 } }, ";
+    html << "{ selector:'.start', style:{ 'background-color':'#22c55e' } }, { selector:'.end', style:{ 'background-color':'#ef4444' } } ], minZoom:0.8, maxZoom:2.5, ";
 
     if(manualPositions){
         html << "layout:{ name:'preset', fit:false, padding:0 }";
@@ -509,7 +738,6 @@ void generateHTML(const vector<string>& shortestPath, int totalWeight, const str
     html << "cy.userPanningEnabled(true);\n";
     html << "cy.panningEnabled(true);\n";
     html << "cy.on('layoutstop', function(){ cy.nodes().lock(); });\n";
-    html << "cy.on('pan', function(){ console.log('PAN:', cy.pan()); });\n";
     if(manualPositions){
         html << "setTimeout(() => { cy.fit(undefined, 60); cy.zoom(1.15); cy.center(); }, 200);\n";
     } else {
@@ -517,64 +745,208 @@ void generateHTML(const vector<string>& shortestPath, int totalWeight, const str
     }
 
     // Highlight path if exists
-    html << "function highlightPath(path){ if(!path || path.length==0) return; for(let i=0;i<path.length-1;i++){ let e = cy.edges().filter(function(ed){ return ed.data('source')===path[i] && ed.data('target')===path[i+1]; }); e.addClass('highlighted'); } // mark start/end nodes\n";
+    html << "function highlightPath(path){ if(!path || path.length==0) return; for(let i=0;i<path.length-1;i++){ let e = cy.edges().filter(function(ed){ return ed.data('source')===path[i] && ed.data('target')===path[i+1]; }); e.addClass('highlighted'); }\n";
     html << "cy.$id(path[0]).addClass('start'); cy.$id(path[path.length-1]).addClass('end'); }\n";
 
-    // Robot animation: change node labels to show robot emoji on current node and flag at destination
-    html << "function animateRobot(path){ if(!path || path.length==0) return; let idx=0; function step(){ if(idx>0){ // restore previous node label\n";
-    html << " let prev = path[idx-1]; cy.$id(prev).data('label', prev); } let cur = path[idx]; // set robot on cur\n";
-    html << " cy.$id(cur).data('label', '🤖 '+cur); if(idx==path.length-1){ // destination flag\n";
-    html << " cy.$id(cur).data('label', cur + ' 🚩'); return; } idx++; setTimeout(step, 700); } // start: label start with robot\n";
-    html << " cy.$id(path[0]).data('label', '🤖 ' + path[0]); setTimeout(step, 700); }\n";
+    // Robot animation
+    html << "function animateRobot(path){\n";
+    html << "  if(!path || path.length==0) return;\n";
+    html << "  cy.nodes().forEach(n => { n.data('label', n.id()); });\n";
+    html << "  let idx = 0;\n";
+    html << "  function step(){\n";
+    html << "    if(idx > 0){\n";
+    html << "      let prev = path[idx-1];\n";
+    html << "      cy.$id(prev).data('label', prev);\n";
+    html << "    }\n";
+    html << "    let cur = path[idx];\n";
+    html << "    if(idx == path.length - 1){\n";
+    html << "      cy.$id(cur).data('label', cur + ' 🚩');\n";
+    html << "      return;\n";
+    html << "    }\n";
+    html << "    cy.$id(cur).data('label', '🤖 ' + cur);\n";
+    html << "    idx++;\n";
+    html << "    setTimeout(step, 700);\n";
+    html << "  }\n";
+    html << "  setTimeout(step, 300);\n";
+    html << "}\n";
 
-    html << "// apply highlighting and animation when shortestPath present\n";
     html << "if(shortestPath.length>0){ highlightPath(shortestPath); animateRobot(shortestPath); }\n";
 
+    // Playback script
+    html << "let animStepIndex = 0;\n";
+    html << "let animInterval = null;\n";
+    html << "function getSpeedDelay() {\n";
+    html << "  let val = document.getElementById('anim-speed').value;\n";
+    html << "  let label = document.getElementById('speed-label');\n";
+    html << "  if (val == 1) {\n";
+    html << "    label.textContent = 'Slow';\n";
+    html << "    return 1500;\n";
+    html << "  } else if (val == 2) {\n";
+    html << "    label.textContent = 'Normal';\n";
+    html << "    return 800;\n";
+    html << "  } else {\n";
+    html << "    label.textContent = 'Fast';\n";
+    html << "    return 300;\n";
+    html << "  }\n";
+    html << "}\n";
+    html << "document.getElementById('anim-speed').addEventListener('input', () => {\n";
+    html << "  getSpeedDelay();\n";
+    html << "  if (animInterval) {\n";
+    html << "    animStop();\n";
+    html << "    animPlay();\n";
+    html << "  }\n";
+    html << "});\n";
+    html << "document.getElementById('anim-total-steps').textContent = processStepsData.length;\n";
+    html << "function animPlay() {\n";
+    html << "  if (animStepIndex >= processStepsData.length) {\n";
+    html << "    animReset();\n";
+    html << "  }\n";
+    html << "  document.getElementById('btn-play').textContent = '⏸ Pause';\n";
+    html << "  animInterval = setInterval(() => {\n";
+    html << "    if (animStepIndex < processStepsData.length) {\n";
+    html << "      animShowStep(animStepIndex);\n";
+    html << "      animStepIndex++;\n";
+    html << "    } else {\n";
+    html << "      animStop();\n";
+    html << "    }\n";
+    html << "  }, getSpeedDelay());\n";
+    html << "}\n";
+    html << "function animStop() {\n";
+    html << "  if (animInterval) {\n";
+    html << "    clearInterval(animInterval);\n";
+    html << "    animInterval = null;\n";
+    html << "  }\n";
+    html << "  document.getElementById('btn-play').textContent = '▶ Play';\n";
+    html << "}\n";
+    html << "function animPlayPause() {\n";
+    html << "  if (animInterval) {\n";
+    html << "    animStop();\n";
+    html << "  } else {\n";
+    html << "    animPlay();\n";
+    html << "  }\n";
+    html << "}\n";
+    html << "function animNext() {\n";
+    html << "  animStop();\n";
+    html << "  if (animStepIndex < processStepsData.length) {\n";
+    html << "    animShowStep(animStepIndex);\n";
+    html << "    animStepIndex++;\n";
+    html << "  }\n";
+    html << "}\n";
+    html << "function animPrev() {\n";
+    html << "  animStop();\n";
+    html << "  if (animStepIndex > 0) {\n";
+    html << "    animStepIndex--;\n";
+    html << "    if (animStepIndex === 0) {\n";
+    html << "      animReset();\n";
+    html << "    } else {\n";
+    html << "      animShowStep(animStepIndex - 1);\n";
+    html << "    }\n";
+    html << "  }\n";
+    html << "}\n";
+    html << "function animReset(){\n";
+    html << "  animStop();\n";
+    html << "  animStepIndex = 0;\n";
+    html << "  cy.nodes().removeClass('anim-current anim-visited');\n";
+    html << "  cy.edges().removeClass('anim-relaxed');\n";
+    html << "  cy.nodes().forEach(n => n.data('label', n.id()));\n";
+    html << "  document.getElementById('anim-info').textContent = 'Tekan Play atau Next untuk mulai animasi.';\n";
+    html << "  document.getElementById('anim-step-num').textContent = '0';\n";
+    html << "}\n";
+    html << "function animShowStep(idx) {\n";
+    html << "  if (idx < 0 || idx >= processStepsData.length) return;\n";
+    html << "  cy.nodes().removeClass('anim-current anim-visited');\n";
+    html << "  cy.edges().removeClass('anim-relaxed');\n";
+    html << "  let step = processStepsData[idx];\n";
+    html << "  step.visited.forEach(nodeId => {\n";
+    html << "    if (nodeId !== step.current) {\n";
+    html << "      cy.$id(nodeId).addClass('anim-visited');\n";
+    html << "    }\n";
+    html << "  });\n";
+    html << "  let currNode = cy.$id(step.current);\n";
+    html << "  currNode.addClass('anim-current');\n";
+    html << "  cy.nodes().forEach(n => n.data('label', n.id()));\n";
+    html << "  currNode.data('label', '🤖 ' + step.current);\n";
+    html << "  let infoText = 'Iteration ' + step.iteration + ' — Processing: ' + step.current.toUpperCase();\n";
+    html << "  if (step.updatedNodes && step.updatedNodes.length > 0) {\n";
+    html << "    infoText += ' — Updated: ';\n";
+    html << "    step.updatedNodes.forEach((upNode, i) => {\n";
+    html << "      if (upNode.prev) {\n";
+    html << "        let edge = cy.edges().filter(ed => ed.data('source') === upNode.prev && ed.data('target') === upNode.node);\n";
+    html << "        edge.addClass('anim-relaxed');\n";
+    html << "      }\n";
+    html << "      let distVal = upNode.dist >= 1e9 ? 'INF' : upNode.dist;\n";
+    html << "      infoText += upNode.node.toUpperCase() + ' = ' + distVal + ' via ' + upNode.prev.toUpperCase();\n";
+    html << "      if (i < step.updatedNodes.length - 1) infoText += ', ';\n";
+    html << "    });\n";
+    html << "  } else {\n";
+    html << "    infoText += ' — No updates';\n";
+    html << "  }\n";
+    html << "  document.getElementById('anim-info').textContent = infoText;\n";
+    html << "  document.getElementById('anim-step-num').textContent = idx + 1;\n";
+    html << "}\n";
     html << "</script>\n";
+}
+
+// Helper: write animation panel HTML
+void writeHTMLAnimationPanel(ofstream& html){
+    html << "<div id='anim-panel' style='margin:16px auto;max-width:1100px;padding:16px 20px;\n";
+    html << "background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;'>\n";
+    html << "  <h3 style='margin:0 0 10px;font-size:16px;'>🎮 Step-by-Step Dijkstra Playback</h3>\n";
+    html << "  <div id='anim-info' style='min-height:40px;padding:10px 14px;background:#fff;\n";
+    html << "  border:1px solid #e5e7eb;border-radius:10px;font-size:14px;margin-bottom:12px;\n";
+    html << "  color:#374151;'>Tekan Play atau Next untuk mulai animasi.</div>\n";
+    html << "  <div style='display:flex;gap:10px;align-items:center;flex-wrap:wrap;'>\n";
+    html << "    <button onclick='animPrev()' style='padding:8px 18px;border-radius:8px;\n";
+    html << "    border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:14px;'>⏮ Prev</button>\n";
+    html << "    <button id='btn-play' onclick='animPlayPause()' style='padding:8px 18px;\n";
+    html << "    border-radius:8px;border:none;background:#3b82f6;color:#fff;cursor:pointer;\n";
+    html << "    font-size:14px;'>▶ Play</button>\n";
+    html << "    <button onclick='animNext()' style='padding:8px 18px;border-radius:8px;\n";
+    html << "    border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:14px;'>Next ⏭</button>\n";
+    html << "    <button onclick='animReset()' style='padding:8px 18px;border-radius:8px;\n";
+    html << "    border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:14px;'>↺ Reset</button>\n";
+    html << "    <label style='font-size:13px;color:#6b7280;margin-left:8px;'>Speed:</label>\n";
+    html << "    <input type='range' id='anim-speed' min='1' max='3' value='2' style='cursor:pointer;'>\n";
+    html << "    <span style='font-size:13px;color:#6b7280;' id='speed-label'>Normal</span>\n";
+    html << "    <span style='font-size:13px;color:#6b7280;margin-left:auto;'>Step: <strong id='anim-step-num'>0</strong> / <strong id='anim-total-steps'>0</strong></span>\n";
+    html << "  </div>\n";
+    html << "</div>\n";
+}
+
+// Main generateHTML function — now delegates to helpers
+void generateHTML(const vector<string>& shortestPath, int totalWeight,
+                  const string& source, const string& destination,
+                  bool manualPositions,
+                  const map<string, pair<int,int>>& positions){
+    ofstream html("index.html");
+
+    writeHTMLHead(html);
+    writeHTMLStyles(html);
+    writeHTMLTopSection(html, shortestPath, totalWeight, source, destination);
+    writeHTMLGraphSection(html);
+    writeHTMLAnimationPanel(html);
+    writeHTMLTable(html, shortestPath);
+    writeHTMLScripts(html, shortestPath, manualPositions, positions);
 
     html << "</body>\n</html>\n";
-
     html.close();
 }
 
-// Helper: read graph for custom mode
-bool nodeExists(const string& n){
-    return find(nodes.begin(), nodes.end(), n) != nodes.end();
-}
-
-void normalizeNodeInput(string& value){
-    transform(value.begin(), value.end(), value.begin(), [](unsigned char ch){
-        return static_cast<char>(toupper(ch));
-    });
-}
-
-string toUpperCopy(string value){
-    return toUpperCase(value);
-}
-
-bool tryResolveNodeCaseInsensitive(const string& input, string& resolved){
-    string inputUpper = toUpperCopy(input);
-    for(const auto& n : nodes){
-        if(toUpperCopy(n) == inputUpper){
-            resolved = n;
-            return true;
-        }
-    }
-    return false;
-}
-
+// ============================================================
+// Main
+// ============================================================
 int main(){
- 
+
     ios::sync_with_stdio(false);
 
-    system("cls");
+    clearScreen();
 
     while(true){
         cout << "====================================\n";
         cout << "IMPLEMENTASI ALGORITMA DIJKSTRA\n";
         cout << "VISUAL GAME PATH FINDING\n";
         cout << "====================================\n\n";
-        cout << "1. Mode Predefined Graph\n2. Mode Custom Graph\n0. Exit\n";
+        cout << "1. Mode Predefined Graph (Bidirectional)\n2. Mode Custom Graph\n0. Exit\n";
         cout << "Pilih mode: ";
         int mode;
         while(true){
@@ -586,6 +958,8 @@ int main(){
 
         if(mode==1){
             setupPredefinedGraph();
+
+            cout << "\n[MODE 1] Predefined Graph — Bidirectional Edges\n";
 
             // Manual positions for mode 1 (fixed map-like layout)
             map<string, pair<int,int>> pos = {
@@ -608,10 +982,12 @@ int main(){
             // show initial graph first
             vector<string> emptyPath;
             generateHTML(emptyPath, 0, "", "", true, pos);
-            system("start index.html");
+            openBrowser();
+            cout << "\n>> HTML graph generated: index.html\n";
+            cout << ">> Please open index.html in your browser to view the graph.\n\n";
 
             string source, destination;
-            cout << "\n==================================\n";
+            cout << "==================================\n";
             cout << "INPUT NODE\n";
             cout << "==================================\n\n";
             cout << "Format node:\nV1 sampai V14\n\n";
@@ -648,22 +1024,67 @@ int main(){
             auto dist = result.first;
             auto prev = result.second;
 
-            vector<string> path = reconstructPath(prev, destination);
+            vector<string> path = reconstructPath(prev, dist, source, destination);
             int total = dist[destination] >= INF ? -1 : dist[destination];
 
+            cout << "\n==================================\n";
+            cout << "RESULT: " << toUpperCase(source) << " → " << toUpperCase(destination) << "\n";
+            cout << "==================================\n";
+
             if(path.empty() || total==-1){
-                cout << "Tidak ada jalur dari " << source << " ke " << destination << "\n";
+                cout << "Tidak ada jalur dari " << toUpperCase(source) << " ke " << toUpperCase(destination) << "\n";
             } else {
                 cout << "\nShortest Path:\n";
-                for(size_t i=0;i<path.size();++i){ cout << path[i]; if(i+1!=path.size()) cout << " -> "; }
+                for(size_t i=0;i<path.size();++i){ cout << toUpperCase(path[i]); if(i+1!=path.size()) cout << " -> "; }
                 cout << "\nTotal Bobot: " << total << "\n";
             }
 
+            // Print console table with ALL destinations
+            printConsoleTable(dist, prev, source);
+
+            // Print complexity note
+            printComplexityNote();
+
             generateHTML(path, total, source, destination, true, pos);
-            system("start index.html");
+            openBrowser();
+            cout << "\n>> HTML updated: index.html\n";
+            cout << ">> Please open (or refresh) index.html in your browser to view the result.\n\n";
 
         } else if(mode==2){
             graph.clear(); nodes.clear(); processSteps.clear();
+
+            // ---- Ask user: directed or undirected? ----
+            bool useDirected = true;
+            cout << "\n==================================\n";
+            cout << "GRAPH TYPE\n";
+            cout << "==================================\n\n";
+            cout << "1. Directed Graph   (A -> B only)\n";
+            cout << "2. Undirected Graph (A <-> B both ways)\n";
+            cout << "Pilih tipe graph: ";
+
+            while(true){
+                string line;
+                if(!getline(cin, line)){
+                    cout << "[ERROR]\nInput tidak valid. Masukkan 1 atau 2.\nPilih tipe graph: ";
+                    continue;
+                }
+                stringstream ss(line);
+                int choice;
+                string extra;
+                if(!(ss >> choice) || (ss >> extra) || (choice != 1 && choice != 2)){
+                    cout << "[ERROR]\nInput tidak valid. Masukkan 1 atau 2.\nPilih tipe graph: ";
+                    continue;
+                }
+                useDirected = (choice == 1);
+                break;
+            }
+
+            if(useDirected){
+                cout << "\n[MODE 2] Custom Graph — Directed Edges (A -> B)\n";
+            } else {
+                cout << "\n[MODE 2] Custom Graph — Undirected/Bidirectional Edges (A <-> B)\n";
+            }
+
             int n;
             while(true){
                 if(!readPositiveIntLine("Masukkan jumlah node: ", n)){
@@ -707,9 +1128,21 @@ int main(){
 
             int m;
             cout << "\n==================================\n";
-            cout << "INPUT EDGE GRAPH\n";
-            cout << "==================================\n\n";
-            int maxEdge = n * (n - 1);
+            cout << "INPUT EDGE GRAPH";
+            if(useDirected){
+                cout << " (Directed)";
+            } else {
+                cout << " (Undirected)";
+            }
+            cout << "\n==================================\n\n";
+
+            int maxEdge;
+            if(useDirected){
+                maxEdge = n * (n - 1);
+            } else {
+                maxEdge = n * (n - 1) / 2;
+            }
+
             while(true){
                 if(readStrictIntLine("Masukkan jumlah edge: ", m) && m >= 0 && m <= maxEdge) break;
                 cout << "[ERROR]\nJumlah edge melebihi batas maksimum.\n\nUntuk " << n << " node,\nmaksimal edge adalah " << maxEdge << ".\n\nSilakan input ulang.\n";
@@ -749,7 +1182,17 @@ int main(){
                         continue;
                     }
 
-                    addDirectedEdge(a, b, w);
+                    // For undirected, also check reverse direction
+                    if(!useDirected && directedEdgeExists(b, a)){
+                        cout << "\n[ERROR]\nEdge " << toUpperCase(b) << " <-> " << toUpperCase(a) << " sudah ada.\nSilakan input edge lain.\n\n";
+                        continue;
+                    }
+
+                    if(useDirected){
+                        addDirectedEdge(a, b, w);
+                    } else {
+                        addBidirectionalEdge(a, b, w);
+                    }
                     break;
                 }
             }
@@ -758,10 +1201,12 @@ int main(){
             vector<string> emptyPath;
             map<string, pair<int,int>> noPos;
             generateHTML(emptyPath, 0, "", "", false, noPos);
-            system("start index.html");
+            openBrowser();
+            cout << "\n>> HTML graph generated: index.html\n";
+            cout << ">> Please open index.html in your browser to view the graph.\n\n";
 
             string source, destination;
-            cout << "\n==================================\n";
+            cout << "==================================\n";
             cout << "INPUT NODE\n";
             cout << "==================================\n\n";
             cout << "Format node:\n";
@@ -795,7 +1240,7 @@ int main(){
                 cout << "Silakan input ulang.\n\n";
                 cout << "Node tersedia:\n";
                 for(size_t i=0;i<nodes.size();++i){
-                    cout << nodes[i];
+                    cout << toUpperCase(nodes[i]);
                     if(i+1!=nodes.size()) cout << ", ";
                     if((i+1)%6==0) cout << "\n";
                 }
@@ -806,8 +1251,12 @@ int main(){
             auto dist = result.first;
             auto prev = result.second;
 
-            vector<string> path = reconstructPath(prev, destination);
+            vector<string> path = reconstructPath(prev, dist, source, destination);
             int total = dist[destination] >= INF ? -1 : dist[destination];
+
+            cout << "\n==================================\n";
+            cout << "RESULT: " << toUpperCase(source) << " → " << toUpperCase(destination) << "\n";
+            cout << "==================================\n";
 
             if(path.empty() || total==-1){
                 cout << "Tidak ada jalur dari " << toUpperCase(source) << " ke " << toUpperCase(destination) << "\n";
@@ -817,9 +1266,17 @@ int main(){
                 cout << "\nTotal Bobot: " << total << "\n";
             }
 
+            // Print console table with ALL destinations
+            printConsoleTable(dist, prev, source);
+
+            // Print complexity note
+            printComplexityNote();
+
             map<string, pair<int,int>> noPos2;
             generateHTML(path, total, source, destination, false, noPos2);
-            system("start index.html");
+            openBrowser();
+            cout << "\n>> HTML updated: index.html\n";
+            cout << ">> Please open (or refresh) index.html in your browser to view the result.\n\n";
 
         } else {
             cout << "Mode tidak dikenal. Coba lagi.\n";
