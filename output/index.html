@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/layout-base/layout-base.js"></script>
+<script src="https://unpkg.com/cose-base/cose-base.js"></script>
+<script src="https://unpkg.com/cytoscape-fcose/cytoscape-fcose.js"></script>
+<title>Dijkstra Game Visualization</title>
+<style>
+body{font-family:Arial,Helvetica,sans-serif;background:#ffffff;color:#111827;margin:0;padding:0;line-height:1.45;}
+.page{width:100%;max-width:none;margin:0 auto;padding:22px 24px 40px;box-sizing:border-box;}
+.top-section{width:100%;} 
+.graph-section{width:100%;height:1000px;display:block;position:relative;overflow:visible;margin-top:20px;}
+.table-section{width:100%;margin-top:10px;}
+.guide{max-width:1100px;margin:12px auto 18px;padding:16px 18px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 6px 18px rgba(15,23,42,0.05);text-align:left;}
+.guide h3{margin:0 0 10px;font-size:18px;color:#111827;}
+.guide p{margin:6px 0;color:#374151;}
+.guide .nodes{font-weight:700;color:#111827;}
+.graph-container{width:100%;max-width:none;overflow:visible;position:relative;}
+#cy{width:100%;height:1000px;min-height:1000px;background:#ffffff;border:2px solid #d1d5db;border-radius:20px;position:relative;display:block;}
+.table-wrap{width:100%;overflow-x:auto;overflow-y:hidden;}
+table{width:100%;min-width:1100px;margin:20px auto 0;border-collapse:collapse;table-layout:auto;background:#ffffff;color:#111827;font-size:13px;}
+th, td{border:1px solid #ddd;padding:6px 8px;text-align:center;vertical-align:middle;}
+thead th{background:#f5f5f5;font-weight:bold;}
+thead tr:first-child th{position:sticky;top:0;z-index:2;}
+tbody tr:nth-child(odd) td{background:#ffffff;}
+tbody tr:nth-child(even) td{background:#f9fafb;}
+tbody td{vertical-align:middle;}
+th.node-col, td.node-cell{min-width:55px;}
+td.node-cell{white-space:nowrap;line-height:1.15;}
+td.current-cell{background:#e8f5e9 !important;border-color:#b7dfb9 !important;font-weight:700;}
+td.updated-cell{background:#fff7cc !important;border-color:#f2d27a !important;font-weight:700;}
+td.minimum-cell{background:#dbeafe !important;border:1px solid #60a5fa !important;font-weight:700;color:#111827;}
+td.final-path-cell{background:#bfdbfe !important;border:1px solid #3b82f6 !important;font-weight:700;color:#111827;}
+.iter-tag{font-size:9px;vertical-align:sub;color:#6b7280;margin-left:2px;line-height:1;}
+.set-block{display:inline-block;white-space:normal;line-height:1.25;text-align:center;}
+.result{margin:12px auto 0;padding:14px 18px;font-size:16px;color:#111827;background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;display:inline-block;max-width:100%;}
+.legend{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin:10px 0 8px;}
+.legend-item{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border:1px solid #e5e7eb;border-radius:999px;background:#f9fafb;color:#111827;font-size:14px;}
+.legend-dot{width:12px;height:12px;border-radius:999px;display:inline-block;border:1px solid #334155;}
+.dot-start{background:#22c55e;}
+.dot-end{background:#ef4444;}
+.dot-node{background:#4FC3F7;}
+h1,h2{color:#111827;margin-bottom:10px;}
+.anim-current { background-color: #facc15 !important; border-color: #d97706 !important; }
+.anim-visited { background-color: #86efac !important; border-color: #16a34a !important; }
+.anim-relaxed { line-color: #f97316 !important; target-arrow-color: #f97316 !important; width: 5px !important; }
+</style>
+</head>
+<body>
+<div class='page'>
+<div class='top-section'>
+<h1>🤖 Mekorama Inspired — Dijkstra Visualization</h1>
+<div class='legend'>
+<span class='legend-item'><span class='legend-dot dot-start'></span>Start Node</span>
+<span class='legend-item'><span class='legend-dot dot-end'></span>Goal Node</span>
+<span class='legend-item'><span class='legend-dot dot-node'></span>Normal Node</span>
+</div>
+<div class='guide'>
+<h3>Cara Input Node</h3>
+<p>Masukkan node dengan format yang benar. Jalur akan dicari otomatis menggunakan algoritma Dijkstra.</p>
+<p>Node awal: <strong>V13</strong> | Node tujuan: <strong>V2</strong></p>
+<p class='nodes'>Node tersedia: V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14</p>
+</div>
+<div class='result' id='resultArea'>
+<h2>Shortest Path</h2>
+<p>V13 → V10 → V5 → V2</p>
+<p>Total Bobot: 11</p>
+</div>
+</div>
+<div class='graph-section'>
+<div class='graph-container'>
+<div id="cy"></div>
+</div>
+</div>
+<div id='anim-panel' style='margin:16px auto;max-width:1100px;padding:16px 20px;
+background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;'>
+  <h3 style='margin:0 0 10px;font-size:16px;'>🎮 Step-by-Step Dijkstra Playback</h3>
+  <div id='anim-info' style='min-height:40px;padding:10px 14px;background:#fff;
+  border:1px solid #e5e7eb;border-radius:10px;font-size:14px;margin-bottom:12px;
+  color:#374151;'>Tekan Play atau Next untuk mulai animasi.</div>
+  <div style='display:flex;gap:10px;align-items:center;flex-wrap:wrap;'>
+    <button onclick='animPrev()' style='padding:8px 18px;border-radius:8px;
+    border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:14px;'>⏮ Prev</button>
+    <button id='btn-play' onclick='animPlayPause()' style='padding:8px 18px;
+    border-radius:8px;border:none;background:#3b82f6;color:#fff;cursor:pointer;
+    font-size:14px;'>▶ Play</button>
+    <button onclick='animNext()' style='padding:8px 18px;border-radius:8px;
+    border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:14px;'>Next ⏭</button>
+    <button onclick='animReset()' style='padding:8px 18px;border-radius:8px;
+    border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:14px;'>↺ Reset</button>
+    <label style='font-size:13px;color:#6b7280;margin-left:8px;'>Speed:</label>
+    <input type='range' id='anim-speed' min='1' max='3' value='2' style='cursor:pointer;'>
+    <span style='font-size:13px;color:#6b7280;' id='speed-label'>Normal</span>
+    <span style='font-size:13px;color:#6b7280;margin-left:auto;'>Step: <strong id='anim-step-num'>0</strong> / <strong id='anim-total-steps'>0</strong></span>
+  </div>
+  <div id='step-detail-wrap' style='margin-top:16px;display:none;'>
+    <h4 style='margin:0 0 8px;font-size:14px;color:#374151;'>Detail iterasi ini</h4>
+    <div style='overflow-x:auto;'>
+    <table id='step-detail-table' style='width:100%;border-collapse:collapse;font-size:12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;'>
+      <thead>
+        <tr style='background:#f1f5f9;'>
+          <th style='padding:7px 10px;border:1px solid #e5e7eb;text-align:left;white-space:nowrap;min-width:90px;'>Node diproses</th>
+          <th style='padding:7px 10px;border:1px solid #e5e7eb;text-align:left;min-width:200px;'>Pertimbangan queue (sebelum dipilih)</th>
+          <th style='padding:7px 10px;border:1px solid #e5e7eb;text-align:left;min-width:140px;'>Tetangga dicek</th>
+          <th style='padding:7px 10px;border:1px solid #e5e7eb;text-align:left;min-width:180px;'>Perubahan jarak</th>
+          <th style='padding:7px 10px;border:1px solid #e5e7eb;text-align:left;min-width:200px;'>Belum dikunjungi</th>
+        </tr>
+      </thead>
+      <tbody id='step-detail-body'>
+        <tr><td colspan='5' style='text-align:center;color:#9ca3af;padding:12px;'>Tekan Next untuk melihat detail.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div style='display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#6b7280;'>
+      <span><span style='display:inline-block;width:10px;height:10px;background:#facc15;border:1px solid #d97706;border-radius:2px;margin-right:4px;'></span>Node dipilih dari queue</span>
+      <span><span style='display:inline-block;width:10px;height:10px;background:#bfdbfe;border:1px solid #60a5fa;border-radius:2px;margin-right:4px;'></span>Jarak sama (tiebreaker alphabet)</span>
+      <span><span style='display:inline-block;width:10px;height:10px;background:#dcfce7;border:1px solid #86efac;border-radius:2px;margin-right:4px;'></span>Jarak diperbarui</span>
+      <span><span style='display:inline-block;width:10px;height:10px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:2px;margin-right:4px;'></span>Sudah dikunjungi / tidak berubah</span>
+    </div>
+  </div>
+</div>
+<div class='table-section'>
+<h2>Tabel Proses Dijkstra</h2>
+<div class='table-wrap'>
+<table>
+<thead>
+<tr><th>Iteration</th><th>Unvisited(Q)</th><th>Visited(S)</th><th>Current</th><th colspan='14'>Node : Min = (dist[node], prev[node])</th></tr>
+<tr><th></th><th></th><th></th><th></th><th class='node-col'>V1</th><th class='node-col'>V2</th><th class='node-col'>V3</th><th class='node-col'>V4</th><th class='node-col'>V5</th><th class='node-col'>V6</th><th class='node-col'>V7</th><th class='node-col'>V8</th><th class='node-col'>V9</th><th class='node-col'>V10</th><th class='node-col'>V11</th><th class='node-col'>V12</th><th class='node-col'>V13</th><th class='node-col'>V14</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td><div class='set-block'>{V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V14}</div></td><td><div class='set-block'>{V13}</div></td><td class='current-cell'>V13</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell updated-cell'>(5,V13)<span class='iter-tag'>1</span></td><td class='node-cell updated-cell'>(2,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(∞,-)</td><td class='node-cell updated-cell'>(4,V13)<span class='iter-tag'>1</span></td><td class='node-cell minimum-cell'>(0,-)<span class='iter-tag'>0</span></td><td class='node-cell'>(∞,-)</td></tr>
+<tr><td>2</td><td><div class='set-block'>{V1,V2,V3,V4,V5,V6,V7,V8,V9,V11,V12,V14}</div></td><td><div class='set-block'>{V13,V10}</div></td><td class='current-cell'>V10</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell updated-cell'>(6,V10)<span class='iter-tag'>2</span></td><td class='node-cell updated-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(5,V13)<span class='iter-tag'>1</span></td><td class='node-cell minimum-cell'>(2,V13)<span class='iter-tag'>1</span></td><td class='node-cell updated-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(0,-)<span class='iter-tag'>0</span></td><td class='node-cell'>(∞,-)</td></tr>
+<tr><td>3</td><td><div class='set-block'>{V1,V2,V3,V4,V5,V6,V7,V8,V9,V12,V14}</div></td><td><div class='set-block'>{V13,V10,V11}</div></td><td class='current-cell'>V11</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(6,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell updated-cell'>(7,V11)<span class='iter-tag'>3</span></td><td class='node-cell updated-cell'>(7,V11)<span class='iter-tag'>3</span></td><td class='node-cell'>(5,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(2,V13)<span class='iter-tag'>1</span></td><td class='node-cell minimum-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(0,-)<span class='iter-tag'>0</span></td><td class='node-cell updated-cell'>(10,V11)<span class='iter-tag'>3</span></td></tr>
+<tr><td>4</td><td><div class='set-block'>{V1,V2,V3,V4,V5,V6,V7,V8,V9,V14}</div></td><td><div class='set-block'>{V13,V10,V11,V12}</div></td><td class='current-cell'>V12</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(6,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(7,V11)<span class='iter-tag'>3</span></td><td class='node-cell'>(7,V11)<span class='iter-tag'>3</span></td><td class='node-cell'>(5,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(2,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell minimum-cell'>(4,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(0,-)<span class='iter-tag'>0</span></td><td class='node-cell updated-cell'>(7,V12)<span class='iter-tag'>4</span></td></tr>
+<tr><td>5</td><td><div class='set-block'>{V1,V2,V3,V4,V5,V7,V8,V9,V14}</div></td><td><div class='set-block'>{V13,V10,V11,V12,V6}</div></td><td class='current-cell'>V6</td><td class='node-cell'>(∞,-)</td><td class='node-cell updated-cell'>(16,V6)<span class='iter-tag'>5</span></td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(6,V10)<span class='iter-tag'>2</span></td><td class='node-cell minimum-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell updated-cell'>(6,V6)<span class='iter-tag'>5</span></td><td class='node-cell'>(7,V11)<span class='iter-tag'>3</span></td><td class='node-cell'>(5,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(2,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(0,-)<span class='iter-tag'>0</span></td><td class='node-cell'>(7,V12)<span class='iter-tag'>4</span></td></tr>
+<tr><td>6</td><td><div class='set-block'>{V1,V2,V3,V4,V5,V7,V8,V14}</div></td><td><div class='set-block'>{V13,V10,V11,V12,V6,V9}</div></td><td class='current-cell'>V9</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(16,V6)<span class='iter-tag'>5</span></td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(6,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(6,V6)<span class='iter-tag'>5</span></td><td class='node-cell'>(7,V11)<span class='iter-tag'>3</span></td><td class='node-cell minimum-cell'>(5,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(2,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(0,-)<span class='iter-tag'>0</span></td><td class='node-cell'>(7,V12)<span class='iter-tag'>4</span></td></tr>
+<tr><td>7</td><td><div class='set-block'>{V1,V2,V3,V4,V7,V8,V14}</div></td><td><div class='set-block'>{V13,V10,V11,V12,V6,V9,V5}</div></td><td class='current-cell'>V5</td><td class='node-cell'>(∞,-)</td><td class='node-cell updated-cell'>(11,V5)<span class='iter-tag'>7</span></td><td class='node-cell updated-cell'>(8,V5)<span class='iter-tag'>7</span></td><td class='node-cell updated-cell'>(10,V5)<span class='iter-tag'>7</span></td><td class='node-cell minimum-cell'>(6,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(6,V6)<span class='iter-tag'>5</span></td><td class='node-cell'>(7,V11)<span class='iter-tag'>3</span></td><td class='node-cell'>(5,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(2,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(0,-)<span class='iter-tag'>0</span></td><td class='node-cell'>(7,V12)<span class='iter-tag'>4</span></td></tr>
+<tr><td>8</td><td><div class='set-block'>{V1,V2,V3,V4,V8,V14}</div></td><td><div class='set-block'>{V13,V10,V11,V12,V6,V9,V5,V7}</div></td><td class='current-cell'>V7</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(11,V5)<span class='iter-tag'>7</span></td><td class='node-cell'>(8,V5)<span class='iter-tag'>7</span></td><td class='node-cell updated-cell'>(9,V7)<span class='iter-tag'>8</span></td><td class='node-cell'>(6,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell minimum-cell'>(6,V6)<span class='iter-tag'>5</span></td><td class='node-cell'>(7,V11)<span class='iter-tag'>3</span></td><td class='node-cell'>(5,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(2,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(0,-)<span class='iter-tag'>0</span></td><td class='node-cell'>(7,V12)<span class='iter-tag'>4</span></td></tr>
+<tr><td>9</td><td><div class='set-block'>{V1,V2,V3,V4,V8}</div></td><td><div class='set-block'>{V13,V10,V11,V12,V6,V9,V5,V7,V14}</div></td><td class='current-cell'>V14</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(11,V5)<span class='iter-tag'>7</span></td><td class='node-cell'>(8,V5)<span class='iter-tag'>7</span></td><td class='node-cell'>(9,V7)<span class='iter-tag'>8</span></td><td class='node-cell'>(6,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(6,V6)<span class='iter-tag'>5</span></td><td class='node-cell'>(7,V11)<span class='iter-tag'>3</span></td><td class='node-cell'>(5,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(2,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(0,-)<span class='iter-tag'>0</span></td><td class='node-cell minimum-cell'>(7,V12)<span class='iter-tag'>4</span></td></tr>
+<tr><td>10</td><td><div class='set-block'>{V1,V2,V3,V4}</div></td><td><div class='set-block'>{V13,V10,V11,V12,V6,V9,V5,V7,V14,V8}</div></td><td class='current-cell'>V8</td><td class='node-cell'>(∞,-)</td><td class='node-cell'>(11,V5)<span class='iter-tag'>7</span></td><td class='node-cell'>(8,V5)<span class='iter-tag'>7</span></td><td class='node-cell'>(9,V7)<span class='iter-tag'>8</span></td><td class='node-cell'>(6,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(6,V6)<span class='iter-tag'>5</span></td><td class='node-cell minimum-cell'>(7,V11)<span class='iter-tag'>3</span></td><td class='node-cell'>(5,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(2,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(0,-)<span class='iter-tag'>0</span></td><td class='node-cell'>(7,V12)<span class='iter-tag'>4</span></td></tr>
+<tr><td>11</td><td><div class='set-block'>{V1,V2,V4}</div></td><td><div class='set-block'>{V13,V10,V11,V12,V6,V9,V5,V7,V14,V8,V3}</div></td><td class='current-cell'>V3</td><td class='node-cell updated-cell'>(14,V3)<span class='iter-tag'>11</span></td><td class='node-cell'>(11,V5)<span class='iter-tag'>7</span></td><td class='node-cell minimum-cell'>(8,V5)<span class='iter-tag'>7</span></td><td class='node-cell'>(9,V7)<span class='iter-tag'>8</span></td><td class='node-cell'>(6,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(6,V6)<span class='iter-tag'>5</span></td><td class='node-cell'>(7,V11)<span class='iter-tag'>3</span></td><td class='node-cell'>(5,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(2,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(0,-)<span class='iter-tag'>0</span></td><td class='node-cell'>(7,V12)<span class='iter-tag'>4</span></td></tr>
+<tr><td>12</td><td><div class='set-block'>{V1,V2}</div></td><td><div class='set-block'>{V13,V10,V11,V12,V6,V9,V5,V7,V14,V8,V3,V4}</div></td><td class='current-cell'>V4</td><td class='node-cell'>(14,V3)<span class='iter-tag'>11</span></td><td class='node-cell'>(11,V5)<span class='iter-tag'>7</span></td><td class='node-cell'>(8,V5)<span class='iter-tag'>7</span></td><td class='node-cell minimum-cell'>(9,V7)<span class='iter-tag'>8</span></td><td class='node-cell'>(6,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(6,V6)<span class='iter-tag'>5</span></td><td class='node-cell'>(7,V11)<span class='iter-tag'>3</span></td><td class='node-cell'>(5,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(2,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(0,-)<span class='iter-tag'>0</span></td><td class='node-cell'>(7,V12)<span class='iter-tag'>4</span></td></tr>
+<tr><td>13</td><td><div class='set-block'>{V1}</div></td><td><div class='set-block'>{V13,V10,V11,V12,V6,V9,V5,V7,V14,V8,V3,V4,V2}</div></td><td class='current-cell'>V2</td><td class='node-cell'>(14,V3)<span class='iter-tag'>11</span></td><td class='node-cell minimum-cell'>(11,V5)<span class='iter-tag'>7</span></td><td class='node-cell'>(8,V5)<span class='iter-tag'>7</span></td><td class='node-cell'>(9,V7)<span class='iter-tag'>8</span></td><td class='node-cell'>(6,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(6,V6)<span class='iter-tag'>5</span></td><td class='node-cell'>(7,V11)<span class='iter-tag'>3</span></td><td class='node-cell'>(5,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(2,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(0,-)<span class='iter-tag'>0</span></td><td class='node-cell'>(7,V12)<span class='iter-tag'>4</span></td></tr>
+<tr><td>14</td><td><div class='set-block'>{}</div></td><td><div class='set-block'>{V13,V10,V11,V12,V6,V9,V5,V7,V14,V8,V3,V4,V2,V1}</div></td><td class='current-cell'>V1</td><td class='node-cell minimum-cell'>(14,V3)<span class='iter-tag'>11</span></td><td class='node-cell final-path-cell'>(11,V5)<span class='iter-tag'>7</span></td><td class='node-cell'>(8,V5)<span class='iter-tag'>7</span></td><td class='node-cell'>(9,V7)<span class='iter-tag'>8</span></td><td class='node-cell final-path-cell'>(6,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(6,V6)<span class='iter-tag'>5</span></td><td class='node-cell'>(7,V11)<span class='iter-tag'>3</span></td><td class='node-cell'>(5,V13)<span class='iter-tag'>1</span></td><td class='node-cell final-path-cell'>(2,V13)<span class='iter-tag'>1</span></td><td class='node-cell'>(4,V10)<span class='iter-tag'>2</span></td><td class='node-cell'>(4,V13)<span class='iter-tag'>1</span></td><td class='node-cell final-path-cell'>(0,-)<span class='iter-tag'>0</span></td><td class='node-cell'>(7,V12)<span class='iter-tag'>4</span></td></tr>
+</tbody>
+</table>
+</div>
+</div>
+<script>
+let shortestPath = ['V13','V10','V5','V2'];
+let processStepsData = [
+{ iteration:1, current:'V13', visited:['V13'], updatedNodes:[{node:'V9',dist:5,prev:'V13'},{node:'V10',dist:2,prev:'V13'},{node:'V12',dist:4,prev:'V13'}], queueSnapshot:[{dist:0,node:'V13'}], neighborsChecked:['V9','V10','V12'], unvisited:[{node:'V1',dist:1000000000},{node:'V2',dist:1000000000},{node:'V3',dist:1000000000},{node:'V4',dist:1000000000},{node:'V5',dist:1000000000},{node:'V6',dist:1000000000},{node:'V7',dist:1000000000},{node:'V8',dist:1000000000},{node:'V9',dist:5},{node:'V10',dist:2},{node:'V11',dist:1000000000},{node:'V12',dist:4},{node:'V14',dist:1000000000}] },
+{ iteration:2, current:'V10', visited:['V13','V10'], updatedNodes:[{node:'V5',dist:6,prev:'V10'},{node:'V6',dist:4,prev:'V10'},{node:'V11',dist:4,prev:'V10'}], queueSnapshot:[{dist:2,node:'V10'},{dist:4,node:'V12'},{dist:5,node:'V9'}], neighborsChecked:['V5','V6','V13','V11','V9'], unvisited:[{node:'V1',dist:1000000000},{node:'V2',dist:1000000000},{node:'V3',dist:1000000000},{node:'V4',dist:1000000000},{node:'V5',dist:6},{node:'V6',dist:4},{node:'V7',dist:1000000000},{node:'V8',dist:1000000000},{node:'V9',dist:5},{node:'V11',dist:4},{node:'V12',dist:4},{node:'V14',dist:1000000000}] },
+{ iteration:3, current:'V11', visited:['V13','V10','V11'], updatedNodes:[{node:'V7',dist:7,prev:'V11'},{node:'V8',dist:7,prev:'V11'},{node:'V14',dist:10,prev:'V11'}], queueSnapshot:[{dist:4,node:'V11'},{dist:4,node:'V12'},{dist:4,node:'V6'},{dist:5,node:'V9'},{dist:6,node:'V5'}], neighborsChecked:['V6','V7','V8','V10','V14','V12'], unvisited:[{node:'V1',dist:1000000000},{node:'V2',dist:1000000000},{node:'V3',dist:1000000000},{node:'V4',dist:1000000000},{node:'V5',dist:6},{node:'V6',dist:4},{node:'V7',dist:7},{node:'V8',dist:7},{node:'V9',dist:5},{node:'V12',dist:4},{node:'V14',dist:10}] },
+{ iteration:4, current:'V12', visited:['V13','V10','V11','V12'], updatedNodes:[{node:'V14',dist:7,prev:'V12'}], queueSnapshot:[{dist:4,node:'V12'},{dist:4,node:'V6'},{dist:5,node:'V9'},{dist:6,node:'V5'},{dist:7,node:'V7'},{dist:7,node:'V8'},{dist:10,node:'V14'}], neighborsChecked:['V7','V8','V14','V11','V13'], unvisited:[{node:'V1',dist:1000000000},{node:'V2',dist:1000000000},{node:'V3',dist:1000000000},{node:'V4',dist:1000000000},{node:'V5',dist:6},{node:'V6',dist:4},{node:'V7',dist:7},{node:'V8',dist:7},{node:'V9',dist:5},{node:'V14',dist:7}] },
+{ iteration:5, current:'V6', visited:['V13','V10','V11','V12','V6'], updatedNodes:[{node:'V2',dist:16,prev:'V6'},{node:'V7',dist:6,prev:'V6'}], queueSnapshot:[{dist:4,node:'V6'},{dist:5,node:'V9'},{dist:6,node:'V5'},{dist:7,node:'V14'},{dist:7,node:'V7'},{dist:7,node:'V8'},{dist:10,node:'V14'}], neighborsChecked:['V2','V5','V10','V11','V7'], unvisited:[{node:'V1',dist:1000000000},{node:'V2',dist:16},{node:'V3',dist:1000000000},{node:'V4',dist:1000000000},{node:'V5',dist:6},{node:'V7',dist:6},{node:'V8',dist:7},{node:'V9',dist:5},{node:'V14',dist:7}] },
+{ iteration:6, current:'V9', visited:['V13','V10','V11','V12','V6','V9'], updatedNodes:[], queueSnapshot:[{dist:5,node:'V9'},{dist:6,node:'V5'},{dist:6,node:'V7'},{dist:7,node:'V14'},{dist:7,node:'V7'},{dist:7,node:'V8'},{dist:10,node:'V14'},{dist:16,node:'V2'}], neighborsChecked:['V5','V13','V10'], unvisited:[{node:'V1',dist:1000000000},{node:'V2',dist:16},{node:'V3',dist:1000000000},{node:'V4',dist:1000000000},{node:'V5',dist:6},{node:'V7',dist:6},{node:'V8',dist:7},{node:'V14',dist:7}] },
+{ iteration:7, current:'V5', visited:['V13','V10','V11','V12','V6','V9','V5'], updatedNodes:[{node:'V2',dist:11,prev:'V5'},{node:'V3',dist:8,prev:'V5'},{node:'V4',dist:10,prev:'V5'}], queueSnapshot:[{dist:6,node:'V5'},{dist:6,node:'V7'},{dist:7,node:'V14'},{dist:7,node:'V7'},{dist:7,node:'V8'},{dist:10,node:'V14'},{dist:16,node:'V2'}], neighborsChecked:['V2','V4','V3','V9','V10','V6'], unvisited:[{node:'V1',dist:1000000000},{node:'V2',dist:11},{node:'V3',dist:8},{node:'V4',dist:10},{node:'V7',dist:6},{node:'V8',dist:7},{node:'V14',dist:7}] },
+{ iteration:8, current:'V7', visited:['V13','V10','V11','V12','V6','V9','V5','V7'], updatedNodes:[{node:'V4',dist:9,prev:'V7'}], queueSnapshot:[{dist:6,node:'V7'},{dist:7,node:'V14'},{dist:7,node:'V7'},{dist:7,node:'V8'},{dist:8,node:'V3'},{dist:10,node:'V14'},{dist:10,node:'V4'},{dist:11,node:'V2'},{dist:16,node:'V2'}], neighborsChecked:['V3','V4','V6','V11','V12','V8'], unvisited:[{node:'V1',dist:1000000000},{node:'V2',dist:11},{node:'V3',dist:8},{node:'V4',dist:9},{node:'V8',dist:7},{node:'V14',dist:7}] },
+{ iteration:9, current:'V14', visited:['V13','V10','V11','V12','V6','V9','V5','V7','V14'], updatedNodes:[], queueSnapshot:[{dist:7,node:'V14'},{dist:7,node:'V7'},{dist:7,node:'V8'},{dist:8,node:'V3'},{dist:9,node:'V4'},{dist:10,node:'V14'},{dist:10,node:'V4'},{dist:11,node:'V2'},{dist:16,node:'V2'}], neighborsChecked:['V11','V12'], unvisited:[{node:'V1',dist:1000000000},{node:'V2',dist:11},{node:'V3',dist:8},{node:'V4',dist:9},{node:'V8',dist:7}] },
+{ iteration:10, current:'V8', visited:['V13','V10','V11','V12','V6','V9','V5','V7','V14','V8'], updatedNodes:[], queueSnapshot:[{dist:7,node:'V8'},{dist:8,node:'V3'},{dist:9,node:'V4'},{dist:10,node:'V14'},{dist:10,node:'V4'},{dist:11,node:'V2'},{dist:16,node:'V2'}], neighborsChecked:['V4','V7','V12','V11'], unvisited:[{node:'V1',dist:1000000000},{node:'V2',dist:11},{node:'V3',dist:8},{node:'V4',dist:9}] },
+{ iteration:11, current:'V3', visited:['V13','V10','V11','V12','V6','V9','V5','V7','V14','V8','V3'], updatedNodes:[{node:'V1',dist:14,prev:'V3'}], queueSnapshot:[{dist:8,node:'V3'},{dist:9,node:'V4'},{dist:10,node:'V14'},{dist:10,node:'V4'},{dist:11,node:'V2'},{dist:16,node:'V2'}], neighborsChecked:['V1','V5','V7'], unvisited:[{node:'V1',dist:14},{node:'V2',dist:11},{node:'V4',dist:9}] },
+{ iteration:12, current:'V4', visited:['V13','V10','V11','V12','V6','V9','V5','V7','V14','V8','V3','V4'], updatedNodes:[], queueSnapshot:[{dist:9,node:'V4'},{dist:10,node:'V14'},{dist:10,node:'V4'},{dist:11,node:'V2'},{dist:14,node:'V1'},{dist:16,node:'V2'}], neighborsChecked:['V1','V2','V5','V7','V8'], unvisited:[{node:'V1',dist:14},{node:'V2',dist:11}] },
+{ iteration:13, current:'V2', visited:['V13','V10','V11','V12','V6','V9','V5','V7','V14','V8','V3','V4','V2'], updatedNodes:[], queueSnapshot:[{dist:11,node:'V2'},{dist:14,node:'V1'},{dist:16,node:'V2'}], neighborsChecked:['V1','V4','V5','V6'], unvisited:[{node:'V1',dist:14}] },
+{ iteration:14, current:'V1', visited:['V13','V10','V11','V12','V6','V9','V5','V7','V14','V8','V3','V4','V2','V1'], updatedNodes:[], queueSnapshot:[{dist:14,node:'V1'},{dist:16,node:'V2'}], neighborsChecked:['V2','V3','V4'], unvisited:[] },
+];
+let isManualPositions = true;
+let elements = [
+{ data: { id: 'V1', label: 'V1' }, position: { x: 160, y: 420 } },
+{ data: { id: 'V2', label: 'V2' }, position: { x: 440, y: 180 } },
+{ data: { id: 'V3', label: 'V3' }, position: { x: 440, y: 660 } },
+{ data: { id: 'V4', label: 'V4' }, position: { x: 440, y: 900 } },
+{ data: { id: 'V5', label: 'V5' }, position: { x: 720, y: 180 } },
+{ data: { id: 'V6', label: 'V6' }, position: { x: 720, y: 420 } },
+{ data: { id: 'V7', label: 'V7' }, position: { x: 720, y: 660 } },
+{ data: { id: 'V8', label: 'V8' }, position: { x: 720, y: 900 } },
+{ data: { id: 'V9', label: 'V9' }, position: { x: 1000, y: 60 } },
+{ data: { id: 'V10', label: 'V10' }, position: { x: 1000, y: 320 } },
+{ data: { id: 'V11', label: 'V11' }, position: { x: 1000, y: 560 } },
+{ data: { id: 'V12', label: 'V12' }, position: { x: 1000, y: 800 } },
+{ data: { id: 'V13', label: 'V13' }, position: { x: 1280, y: 180 } },
+{ data: { id: 'V14', label: 'V14' }, position: { x: 1280, y: 560 } },
+{ data: { source: 'V1', target: 'V2', label: '4' } },
+{ data: { source: 'V1', target: 'V3', label: '6' } },
+{ data: { source: 'V1', target: 'V4', label: '10' } },
+{ data: { source: 'V10', target: 'V5', label: '4' } },
+{ data: { source: 'V10', target: 'V6', label: '2' } },
+{ data: { source: 'V10', target: 'V13', label: '2' } },
+{ data: { source: 'V10', target: 'V11', label: '2' } },
+{ data: { source: 'V10', target: 'V9', label: '3' } },
+{ data: { source: 'V11', target: 'V6', label: '7' } },
+{ data: { source: 'V11', target: 'V7', label: '3' } },
+{ data: { source: 'V11', target: 'V8', label: '3' } },
+{ data: { source: 'V11', target: 'V10', label: '2' } },
+{ data: { source: 'V11', target: 'V14', label: '6' } },
+{ data: { source: 'V11', target: 'V12', label: '2' } },
+{ data: { source: 'V12', target: 'V7', label: '5' } },
+{ data: { source: 'V12', target: 'V8', label: '4' } },
+{ data: { source: 'V12', target: 'V14', label: '3' } },
+{ data: { source: 'V12', target: 'V11', label: '2' } },
+{ data: { source: 'V12', target: 'V13', label: '4' } },
+{ data: { source: 'V13', target: 'V9', label: '5' } },
+{ data: { source: 'V13', target: 'V10', label: '2' } },
+{ data: { source: 'V13', target: 'V12', label: '4' } },
+{ data: { source: 'V14', target: 'V11', label: '6' } },
+{ data: { source: 'V14', target: 'V12', label: '3' } },
+{ data: { source: 'V2', target: 'V1', label: '4' } },
+{ data: { source: 'V2', target: 'V4', label: '3' } },
+{ data: { source: 'V2', target: 'V5', label: '5' } },
+{ data: { source: 'V2', target: 'V6', label: '12' } },
+{ data: { source: 'V3', target: 'V1', label: '6' } },
+{ data: { source: 'V3', target: 'V5', label: '2' } },
+{ data: { source: 'V3', target: 'V7', label: '7' } },
+{ data: { source: 'V4', target: 'V1', label: '10' } },
+{ data: { source: 'V4', target: 'V2', label: '3' } },
+{ data: { source: 'V4', target: 'V5', label: '4' } },
+{ data: { source: 'V4', target: 'V7', label: '3' } },
+{ data: { source: 'V4', target: 'V8', label: '8' } },
+{ data: { source: 'V5', target: 'V2', label: '5' } },
+{ data: { source: 'V5', target: 'V4', label: '4' } },
+{ data: { source: 'V5', target: 'V3', label: '2' } },
+{ data: { source: 'V5', target: 'V9', label: '6' } },
+{ data: { source: 'V5', target: 'V10', label: '4' } },
+{ data: { source: 'V5', target: 'V6', label: '2' } },
+{ data: { source: 'V6', target: 'V2', label: '12' } },
+{ data: { source: 'V6', target: 'V5', label: '2' } },
+{ data: { source: 'V6', target: 'V10', label: '2' } },
+{ data: { source: 'V6', target: 'V11', label: '7' } },
+{ data: { source: 'V6', target: 'V7', label: '2' } },
+{ data: { source: 'V7', target: 'V3', label: '7' } },
+{ data: { source: 'V7', target: 'V4', label: '3' } },
+{ data: { source: 'V7', target: 'V6', label: '2' } },
+{ data: { source: 'V7', target: 'V11', label: '3' } },
+{ data: { source: 'V7', target: 'V12', label: '5' } },
+{ data: { source: 'V7', target: 'V8', label: '4' } },
+{ data: { source: 'V8', target: 'V4', label: '8' } },
+{ data: { source: 'V8', target: 'V7', label: '4' } },
+{ data: { source: 'V8', target: 'V12', label: '4' } },
+{ data: { source: 'V8', target: 'V11', label: '3' } },
+{ data: { source: 'V9', target: 'V5', label: '6' } },
+{ data: { source: 'V9', target: 'V13', label: '5' } },
+{ data: { source: 'V9', target: 'V10', label: '3' } },
+];
+var cy = cytoscape({ container: document.getElementById('cy'), pixelRatio: 1, wheelSensitivity: 0.2, autoungrabify: true, userPanningEnabled: true, userZoomingEnabled: true, boxSelectionEnabled: false, elements: elements, style: [ { selector:'node', style:{ 'label':'data(label)','background-color':'#4FC3F7','color':'#111827','font-size':16,'font-weight':'bold','text-valign':'center','text-halign':'center','width':65,'height':65,'border-width':3,'border-color':'#1f2937' } }, { selector:'edge', style:{ 'label':'data(label)','curve-style':'unbundled-bezier','control-point-distances':[60],'control-point-weights':[0.5],'width':3,'line-color':'#6b7280','target-arrow-color':'#6b7280','target-arrow-shape':'triangle','source-endpoint':'outside-to-node','target-endpoint':'outside-to-node','font-size':13,'font-weight':'bold','color':'#111827','text-background-color':'#ffffff','text-background-opacity':1,'text-background-padding':4,'text-border-color':'#d1d5db','text-border-width':1,'text-rotation':'autorotate','loop-direction':'0deg','loop-sweep':'45deg' } }, { selector:'.highlighted', style:{ 'line-color':'#f59e0b','target-arrow-color':'#f59e0b','width':7 } }, { selector:'.anim-current', style:{ 'background-color':'#facc15','border-color':'#d97706','border-width':4 } }, { selector:'.anim-visited', style:{ 'background-color':'#86efac','border-color':'#16a34a' } }, { selector:'.anim-relaxed', style:{ 'line-color':'#f97316','target-arrow-color':'#f97316','width':6 } }, { selector:'.start', style:{ 'background-color':'#22c55e' } }, { selector:'.end', style:{ 'background-color':'#ef4444' } } ], minZoom:0.8, maxZoom:2.5, layout:{ name:'preset', fit:false, padding:0 } });
+cy.userPanningEnabled(true);
+cy.panningEnabled(true);
+cy.on('layoutstop', function(){ cy.nodes().lock(); });
+cy.ready(function(){
+  var edgePairs = {};
+  cy.edges().forEach(function(e){
+    var s = e.data('source'), t = e.data('target');
+    var key = [s,t].sort().join('_');
+    if(!edgePairs[key]) edgePairs[key] = [];
+    edgePairs[key].push(e);
+  });
+  Object.keys(edgePairs).forEach(function(key){
+    var edges = edgePairs[key];
+    var n = edges.length;
+    var baseOffset = 70;
+    edges.forEach(function(e, i){
+      var offset = (i - (n-1)/2.0) * baseOffset;
+      e.style({'curve-style':'unbundled-bezier','control-point-distances':[offset],'control-point-weights':[0.5]});
+    });
+  });
+});
+setTimeout(() => { cy.fit(undefined, 60); cy.zoom(1.15); cy.center(); }, 200);
+function highlightPath(path){ if(!path || path.length==0) return; for(let i=0;i<path.length-1;i++){ let e = cy.edges().filter(function(ed){ return ed.data('source')===path[i] && ed.data('target')===path[i+1]; }); e.addClass('highlighted'); }
+cy.$id(path[0]).addClass('start'); cy.$id(path[path.length-1]).addClass('end'); }
+function animateRobot(path){
+  if(!path || path.length==0) return;
+  cy.nodes().forEach(n => { n.data('label', n.id()); });
+  let idx = 0;
+  function step(){
+    if(idx > 0){
+      let prev = path[idx-1];
+      cy.$id(prev).data('label', prev);
+    }
+    let cur = path[idx];
+    if(idx == path.length - 1){
+      cy.$id(cur).data('label', cur + ' 🚩');
+      return;
+    }
+    cy.$id(cur).data('label', '🤖 ' + cur);
+    idx++;
+    setTimeout(step, 700);
+  }
+  setTimeout(step, 300);
+}
+if(shortestPath.length>0){ highlightPath(shortestPath); animateRobot(shortestPath); }
+let animStepIndex = 0;
+let animInterval = null;
+function getSpeedDelay() {
+  let val = document.getElementById('anim-speed').value;
+  let label = document.getElementById('speed-label');
+  if (val == 1) {
+    label.textContent = 'Slow';
+    return 1500;
+  } else if (val == 2) {
+    label.textContent = 'Normal';
+    return 800;
+  } else {
+    label.textContent = 'Fast';
+    return 300;
+  }
+}
+document.getElementById('anim-speed').addEventListener('input', () => {
+  getSpeedDelay();
+  if (animInterval) {
+    animStop();
+    animPlay();
+  }
+});
+document.getElementById('anim-total-steps').textContent = processStepsData.length;
+function renderStepTable(idx) {
+  var wrap = document.getElementById('step-detail-wrap');
+  var tbody = document.getElementById('step-detail-body');
+  if (idx < 0 || idx >= processStepsData.length) {
+    wrap.style.display = 'none';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:12px;">Tekan Next untuk melihat detail.</td></tr>';
+    return;
+  }
+  wrap.style.display = 'block';
+  var step = processStepsData[idx];
+  var INF = 1e9;
+  var ds = function(v){ return v >= INF ? '∞' : v; };
+  var col1 = '<span style="display:inline-block;padding:2px 10px;border-radius:12px;background:#facc15;color:#111;font-weight:700;border:1px solid #d97706;">' + step.current.toUpperCase() + '</span>';
+  var minDist = Math.min.apply(null, step.queueSnapshot.map(function(q){return q.dist;}));
+  var col2 = step.queueSnapshot.map(function(q){
+    var isPicked = q.node === step.current;
+    var isTie = !isPicked && q.dist === minDist;
+    var label = q.node.toUpperCase() + '=' + ds(q.dist);
+    if (isPicked) return '<span style="padding:1px 7px;border-radius:10px;background:#facc15;color:#111;font-weight:700;border:1px solid #d97706;white-space:nowrap;">' + label + ' ▲</span>';
+    if (isTie)   return '<span style="padding:1px 7px;border-radius:10px;background:#bfdbfe;color:#1e3a8a;border:1px solid #60a5fa;white-space:nowrap;">' + label + '</span>';
+    return '<span style="padding:1px 5px;color:#374151;white-space:nowrap;">' + label + '</span>';
+  }).join(' ');
+  if (!col2) col2 = '<span style="color:#9ca3af;">—</span>';
+  var col3 = step.neighborsChecked.map(function(n){
+    return '<span style="padding:1px 7px;border-radius:10px;background:#e0e7ff;color:#3730a3;border:1px solid #a5b4fc;white-space:nowrap;">' + n.toUpperCase() + '</span>';
+  }).join(' ');
+  if (!col3) col3 = '<span style="color:#9ca3af;">tidak ada tetangga</span>';
+  var col4 = '';
+  if (step.updatedNodes && step.updatedNodes.length > 0) {
+    col4 = step.updatedNodes.map(function(u){
+      return '<span style="padding:1px 7px;border-radius:10px;background:#dcfce7;color:#14532d;border:1px solid #86efac;white-space:nowrap;">' + u.node.toUpperCase() + '=' + ds(u.dist) + ' via ' + u.prev.toUpperCase() + '</span>';
+    }).join(' ');
+  } else {
+    col4 = '<span style="color:#9ca3af;">tidak ada perubahan</span>';
+  }
+  var visitedSet = {};
+  step.visited.forEach(function(v){ visitedSet[v] = true; });
+  var col5 = step.unvisited.map(function(u){
+    var hasQueue = u.dist < INF;
+    if (hasQueue) {
+      return '<span style="padding:1px 7px;border-radius:10px;background:#e0f2fe;color:#0c4a6e;border:1px solid #7dd3fc;white-space:nowrap;">' + u.node.toUpperCase() + '(' + ds(u.dist) + ')</span>';
+    } else {
+      return '<span style="padding:1px 7px;border-radius:10px;background:#f3f4f6;color:#9ca3af;border:1px solid #d1d5db;white-space:nowrap;">' + u.node.toUpperCase() + '(∞)</span>';
+    }
+  }).join(' ');
+  if (!col5) col5 = '<span style="color:#16a34a;font-weight:600;">Semua node sudah dikunjungi!</span>';
+  tbody.innerHTML = '<tr>'
+    + '<td style="padding:8px 10px;border:1px solid #e5e7eb;vertical-align:top;">' + col1 + '</td>'
+    + '<td style="padding:8px 10px;border:1px solid #e5e7eb;vertical-align:top;line-height:1.8;">' + col2 + '</td>'
+    + '<td style="padding:8px 10px;border:1px solid #e5e7eb;vertical-align:top;line-height:1.8;">' + col3 + '</td>'
+    + '<td style="padding:8px 10px;border:1px solid #e5e7eb;vertical-align:top;line-height:1.8;">' + col4 + '</td>'
+    + '<td style="padding:8px 10px;border:1px solid #e5e7eb;vertical-align:top;line-height:1.8;">' + col5 + '</td>'
+    + '</tr>';
+}
+function animPlay() {
+  if (animStepIndex >= processStepsData.length) {
+    animReset();
+  }
+  document.getElementById('btn-play').textContent = '⏸ Pause';
+  animInterval = setInterval(() => {
+    if (animStepIndex < processStepsData.length) {
+      animShowStep(animStepIndex);
+      animStepIndex++;
+    } else {
+      animStop();
+    }
+  }, getSpeedDelay());
+}
+function animStop() {
+  if (animInterval) {
+    clearInterval(animInterval);
+    animInterval = null;
+  }
+  document.getElementById('btn-play').textContent = '▶ Play';
+}
+function animPlayPause() {
+  if (animInterval) {
+    animStop();
+  } else {
+    animPlay();
+  }
+}
+function animNext() {
+  animStop();
+  if (animStepIndex < processStepsData.length) {
+    animShowStep(animStepIndex);
+    animStepIndex++;
+  }
+}
+function animPrev() {
+  animStop();
+  if (animStepIndex > 0) {
+    animStepIndex--;
+    if (animStepIndex === 0) {
+      animReset();
+    } else {
+      animShowStep(animStepIndex - 1);
+    }
+  }
+}
+function animReset(){
+  animStop();
+  animStepIndex = 0;
+  cy.nodes().removeClass('anim-current anim-visited');
+  cy.edges().removeClass('anim-relaxed');
+  cy.nodes().forEach(n => n.data('label', n.id()));
+  document.getElementById('anim-info').textContent = 'Tekan Play atau Next untuk mulai animasi.';
+  document.getElementById('anim-step-num').textContent = '0';
+  renderStepTable(-1);
+}
+function animShowStep(idx) {
+  if (idx < 0 || idx >= processStepsData.length) return;
+  cy.nodes().removeClass('anim-current anim-visited');
+  cy.edges().removeClass('anim-relaxed');
+  let step = processStepsData[idx];
+  step.visited.forEach(nodeId => {
+    if (nodeId !== step.current) {
+      cy.$id(nodeId).addClass('anim-visited');
+    }
+  });
+  let currNode = cy.$id(step.current);
+  currNode.addClass('anim-current');
+  cy.nodes().forEach(n => n.data('label', n.id()));
+  currNode.data('label', '🤖 ' + step.current);
+  let infoText = 'Iteration ' + step.iteration + ' — Processing: ' + step.current.toUpperCase();
+  if (step.updatedNodes && step.updatedNodes.length > 0) {
+    infoText += ' — Updated: ';
+    step.updatedNodes.forEach((upNode, i) => {
+      if (upNode.prev) {
+        let edge = cy.edges().filter(ed => ed.data('source') === upNode.prev && ed.data('target') === upNode.node);
+        edge.addClass('anim-relaxed');
+      }
+      let distVal = upNode.dist >= 1e9 ? 'INF' : upNode.dist;
+      infoText += upNode.node.toUpperCase() + ' = ' + distVal + ' via ' + upNode.prev.toUpperCase();
+      if (i < step.updatedNodes.length - 1) infoText += ', ';
+    });
+  } else {
+    infoText += ' — No updates';
+  }
+  document.getElementById('anim-info').textContent = infoText;
+  document.getElementById('anim-step-num').textContent = idx + 1;
+  renderStepTable(idx);
+}
+</script>
+</body>
+</html>
