@@ -145,7 +145,7 @@ void writeHTMLTopSection(ofstream& html,
         html << "<h2>Shortest Path</h2>\n<p>";
         for(size_t i=0;i<shortestPath.size();++i){
             html << uc(shortestPath[i]);
-            if(i+1!=shortestPath.size()) html << " → ";
+            if(i+1!=shortestPath.size()) html << " -> ";
         }
         html << "</p>\n<p>Total Bobot: " << totalWeight << "</p>\n";
     } else {
@@ -1072,7 +1072,7 @@ int main(){
 
         if(mode==1){
             setupPredefinedGraph();
-            cout << "\n[MODE 1] Predefined Graph — Bidirectional Edges\n";
+            cout << "\n[MODE 1] Predefined Graph - Bidirectional Edges\n";
 
             map<string, pair<int,int>> pos = {
                 {"V1", {160,420}},
@@ -1098,7 +1098,7 @@ int main(){
             while(true){
                 if(!readSingleTokenLine("Masukkan node awal: ", source) ||
                    !readSingleTokenLine("Masukkan node tujuan: ", destination)){
-                    cout << "\n❌ Node tidak valid.\nSilakan input ulang.\n\n";
+                    cout << "\n Node tidak valid.\nSilakan input ulang.\n\n";
                     continue;
                 }
 
@@ -1112,7 +1112,7 @@ int main(){
                     break;
                 }
 
-                cout << "\n❌ Node tidak valid.\nSilakan input ulang.\n\n";
+                cout << "\n Node tidak valid.\nSilakan input ulang.\n\n";
                 cout << "Node tersedia:\n";
                 for(size_t i=0;i<nodes.size();++i){
                     cout << nodes[i];
@@ -1130,7 +1130,7 @@ int main(){
             int total = dist[destination] >= INF ? -1 : dist[destination];
 
             cout << "\n==================================\n";
-            cout << "RESULT: " << toUpperCase(source) << " → " << toUpperCase(destination) << "\n";
+            cout << "RESULT: " << toUpperCase(source) << " -> " << toUpperCase(destination) << "\n";
             cout << "==================================\n";
 
             if(path.empty() || total==-1){
@@ -1182,9 +1182,9 @@ int main(){
             }
 
             if(useDirected){
-                cout << "\n[MODE 2] Custom Graph — Directed Edges (A -> B)\n";
+                cout << "\n[MODE 2] Custom Graph -- Directed Edges (A -> B)\n";
             } else {
-                cout << "\n[MODE 2] Custom Graph — Undirected/Bidirectional Edges (A <-> B)\n";
+                cout << "\n[MODE 2] Custom Graph -- Undirected/Bidirectional Edges (A <-> B)\n";
             }
 
             int n;
@@ -1304,7 +1304,7 @@ int main(){
             while(true){
                 if(!readSingleTokenLine("Masukkan node awal: ", source) ||
                    !readSingleTokenLine("Masukkan node tujuan: ", destination)){
-                    cout << "\n❌ Node tidak valid.\nSilakan input ulang.\n\n";
+                    cout << "\n Node tidak valid.\nSilakan input ulang.\n\n";
                     continue;
                 }
                 source = toLowerCase(source);
@@ -1320,7 +1320,7 @@ int main(){
                     break;
                 }
 
-                cout << "\n❌ Node tidak valid.\nSilakan input ulang.\n\n";
+                cout << "\n Node tidak valid.\nSilakan input ulang.\n\n";
                 cout << "Node tersedia:\n";
                 for(size_t i=0;i<nodes.size();++i){
                     cout << toUpperCase(nodes[i]);
@@ -1338,7 +1338,7 @@ int main(){
             int total = dist[destination] >= INF ? -1 : dist[destination];
 
             cout << "\n==================================\n";
-            cout << "RESULT: " << toUpperCase(source) << " → " << toUpperCase(destination) << "\n";
+            cout << "RESULT: " << toUpperCase(source) << " -> " << toUpperCase(destination) << "\n";
             cout << "==================================\n";
 
             if(path.empty() || total==-1){
